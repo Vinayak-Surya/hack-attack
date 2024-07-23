@@ -6,13 +6,23 @@ import org.springframework.web.bind.annotation.*;
 
 @RequestMapping
 @RestController
+@CrossOrigin(origins = "*")
 public class CompleteController {
     @Autowired
     private CompleteService completeService;
 
-    @GetMapping
-    @CrossOrigin(origins = "*")
-    private Object returnAccount(@RequestBody String accountId) {
-        return completeService.fetch(accountId);
+    @GetMapping("/accounts/{accountId}/balances")
+    private Object fetchAccountBalances(@RequestParam String accountId) {
+        return completeService.fetchAccountBalances(accountId);
+    }
+
+    @GetMapping("/accounts/{accountId}/transactions")
+    private Object fetchAccountTransactions(@RequestParam String accountId) {
+        return completeService.fetchAccountTransactions(accountId);
+    }
+
+    @GetMapping("/accounts")
+    private Object fetchAccounts() {
+        return completeService.fetchAccounts();
     }
 }
