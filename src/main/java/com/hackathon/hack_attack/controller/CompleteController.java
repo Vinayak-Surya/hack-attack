@@ -12,12 +12,12 @@ public class CompleteController {
     private CompleteService completeService;
 
     @GetMapping("/accounts/{accountId}/balances")
-    private Object fetchAccountBalances(@RequestParam String accountId) {
+    private Object fetchAccountBalances(@PathVariable String accountId) {
         return completeService.fetchAccountBalances(accountId);
     }
 
     @GetMapping("/accounts/{accountId}/transactions")
-    private Object fetchAccountTransactions(@RequestParam String accountId) {
+    private Object fetchAccountTransactions(@PathVariable String accountId) {
         return completeService.fetchAccountTransactions(accountId);
     }
 
