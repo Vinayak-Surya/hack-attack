@@ -25,4 +25,24 @@ public class CompleteController {
     private Object fetchAccounts() {
         return completeService.fetchAccounts();
     }
+
+    @GetMapping("/accounts/{accountId}/cards")
+    private Object fetchAccountCards(@PathVariable String accountId) {
+        return completeService.fetchAccountCards(accountId);
+    }
+
+    @GetMapping("/accounts/{accountId}/cards/{cardId}")
+    private Object fetchAccountCardDetails(@PathVariable String accountId, @PathVariable String cards) {
+        return completeService.fetchAccountCardDetails(accountId, cards);
+    }
+
+    @GetMapping("/accounts/{accountId}/offers")
+    private Object fetchAccountOffers(@PathVariable String accountId) {
+        return completeService.fetchAccountOffers(accountId);
+    }
+
+    @GetMapping("/accounts/{accountId}/statements")
+    private Object fetchAccountStatements(@PathVariable String accountId) {
+        return completeService.fetchAccountStatements(accountId);
+    }
 }
