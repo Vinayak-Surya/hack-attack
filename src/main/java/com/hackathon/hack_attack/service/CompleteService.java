@@ -1,26 +1,114 @@
 package com.hackathon.hack_attack.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hackathon.hack_attack.entity.LoginCredentials;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+
 @Service
 public class CompleteService {
-    String token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHAiOiJIYWNrIEF0dGFjayIsIm9yZyI6Ind3dy5ib2EtaGFjay1hdHRhY2suY29tIiwiaXNzIjoiaHR0cHM6Ly9hcGkuc2FuZGJveC5uYXR3ZXN0LmNvbSIsInRva2VuX3R5cGUiOiJBQ0NFU1NfVE9LRU4iLCJleHRlcm5hbF9jbGllbnRfaWQiOiJLODRYMDg3aXZPci11TUNyQXlDV1pXZFg1RjdBaVhmdXdIX1NQbVJ5QWVNPSIsImNsaWVudF9pZCI6IjgyMzU3MTUzLWE1YWQtNDExNS04Y2RmLWU4NGNiNzRmZTliMSIsIm1heF9hZ2UiOjg2NDAwLCJhdWQiOiI4MjM1NzE1My1hNWFkLTQxMTUtOGNkZi1lODRjYjc0ZmU5YjEiLCJ1c2VyX2lkIjoiMTIzNDU2Nzg5MDEyQHd3dy5ib2EtaGFjay1hdHRhY2suY29tIiwiZ3JhbnRfaWQiOiI3M2IzZmZiYi04NGQyLTQ0NzItYmI3ZS1kYWZhZjg3ZTRjNzQiLCJzY29wZSI6ImFjY291bnRzIG9wZW5pZCIsImNvbnNlbnRfcmVmZXJlbmNlIjoiNzFiYjRlNGEtODg1YS00YmY5LWFkOWEtY2Y0YzAzYWQzYjRhIiwiZXhwIjoxNzIxNzkyMzk2LCJpYXQiOjE3MjE3OTE3OTYsImp0aSI6IjVmMTFkNDNkLTU3ZDktNGQzOS04NWUxLTU5ZmQxOGNkZDY1MCIsInRlbmFudCI6Ik5hdFdlc3QifQ.Inc5of5Z6FFc4Ej0ghlGqxpQ3qDdqqVEpdDqkj-Pic32zUDlQBsOmoVGpc4WUh10UkT3ROTCmhPVA6lujQEeLdTuyMReCQSjpHTVqrw0kpNOe5u2lAmCvncfgT_PdHS-rhverrbqHFCga493hT6Szoahf3_qqFAHR2bpKadMU0Coq08v2hZXAxo-3oLZ17Wd-LL5jzaH2x-8IvE9uZ0dpu724vPAHegAhYGpvBWu1OXuMQ940HFu8yzV0iq_rVC7FirfACgw5_DwjkDL_hOKD9GP5erc6vlfEsuBqLfkptj0doAMPJ6Or6NNFvN-fhaF8v8VSnwfSJX6aFOMO5dB8w";
+    private final List<LoginCredentials> loginCredentialsList;
+    String token = null;
     @Autowired
     private RestTemplate restTemplate;
 
+    public CompleteService() {
+        LoginCredentials loginCredentials1 = new LoginCredentials("abc1", "abc6", "123456789101");
+        LoginCredentials loginCredentials2 = new LoginCredentials("abc2", "abc5", "123456789012");
+        this.loginCredentialsList = new ArrayList<>(List.of(new LoginCredentials[]{loginCredentials1, loginCredentials2}));
+    }
+
+
     // -------------------------------- ACCOUNT APIS --------------------------------
+
+    public Object login(String username, String password) {
+        String userId = loginCredentialsList.stream().filter(loginCredentials -> Objects.equals(loginCredentials.getUsername(), username)
+                && Objects.equals(loginCredentials.getPassword(), password)).findFirst().map(LoginCredentials::getUserId).orElse(null);
+        if(userId != null){
+            authorizationSteps(userId);
+            return fetchAccounts();
+        }
+        return null;
+    }
+
+    private void authorizationSteps(String userId) {
+        try {
+            String clientId = "K84X087ivOr-uMCrAyCWZWdX5F7AiXfuwH_SPmRyAeM=", clientSecret = "korE_IPmOfR1QYAnTsWef8Efrq79LnTQt3KOSBMZ5UU=";
+            ObjectMapper objectMapper = new ObjectMapper();
+            System.out.println("Process Start!");
+
+            // ACCESS TOKEN
+            String accessTokenBody = String.format("grant_type=client_credentials&client_id=%s&client_secret=%s&scope=accounts", clientId, clientSecret);
+            HttpHeaders httpHeaders = new HttpHeaders();
+            httpHeaders.set("Content-Type", "application/x-www-form-urlencoded");
+            String permission = """
+                    {
+                      "Data": {
+                        "Permissions": [
+                          "ReadAccountsDetail",
+                          "ReadBalances",
+                          "ReadTransactionsCredits",
+                          "ReadTransactionsDebits",
+                          "ReadTransactionsDetail"
+                        ]
+                      },
+                      "Risk": {}
+                    }
+                    """;
+            HttpEntity<Object> entity = new HttpEntity<>(accessTokenBody, httpHeaders);
+            String accessToken = objectMapper.readTree(restTemplate.exchange("https://ob.sandbox.natwest.com/token", HttpMethod.POST, entity, String.class).getBody()).get("access_token").asText();
+            System.out.println(accessToken);
+
+            // ACCOUNT ACCESS CONSENTS
+            httpHeaders = new HttpHeaders();
+            httpHeaders.set("Authorization", "Bearer " + accessToken);
+            httpHeaders.set("Content-Type", "application/json");
+            entity = new HttpEntity<>(permission, httpHeaders);
+            String consentId = objectMapper.readTree(restTemplate.exchange("https://ob.sandbox.natwest.com/open-banking/v3.1/aisp/account-access-consents", HttpMethod.POST, entity, String.class).getBody()).get("Data").get("ConsentId").asText();
+            System.out.println(consentId);
+
+            // AUTH TOKEN
+            String message = restTemplate.getForObject(String.format("https://api.sandbox.natwest.com/authorize?client_id=%s&response_type=code id_token&scope=openid accounts&redirect_uri=%s&request=%s&authorization_mode=AUTO_POSTMAN&authorization_result=APPROVED&authorization_username=%s@www.boa-hack-attack.com&authorization_accounts=*",
+                    clientId, "https://boa-hack-attack.com/login", consentId, userId), String.class);
+            assert message != null;
+            String authCode = message.substring(message.indexOf("=") + 1, message.indexOf("id_token"));
+            System.out.println(authCode);
+
+            // TOKEN
+            String tokenBody = String.format("client_id=%s&client_secret=%s&redirect_uri=https://boa-hack-attack.com/login&grant_type=authorization_code&code=%s", clientId, clientSecret, authCode);
+            httpHeaders = new HttpHeaders();
+            httpHeaders.set("Authorization", "Bearer " + accessToken);
+            httpHeaders.set("Content-Type", "application/x-www-form-urlencoded");
+            entity = new HttpEntity<>(tokenBody, httpHeaders);
+            token = objectMapper.readTree(restTemplate.exchange("https://ob.sandbox.natwest.com/token", HttpMethod.POST, entity, String.class).getBody()).get("access_token").asText();
+            System.out.println(token);
+        } catch (Exception e) {
+            System.out.println(Arrays.toString(e.getStackTrace()));
+        }
+    }
+
     public Object fetchAccounts() {
         HttpHeaders httpHeaders = new HttpHeaders();
 //        String token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHAiOiJIYWNrIEF0dGFjayIsIm9yZyI6Ind3dy5ib2EtaGFjay1hdHRhY2suY29tIiwiaXNzIjoiaHR0cHM6Ly9hcGkuc2FuZGJveC5uYXR3ZXN0LmNvbSIsInRva2VuX3R5cGUiOiJBQ0NFU1NfVE9LRU4iLCJleHRlcm5hbF9jbGllbnRfaWQiOiJLODRYMDg3aXZPci11TUNyQXlDV1pXZFg1RjdBaVhmdXdIX1NQbVJ5QWVNPSIsImNsaWVudF9pZCI6IjgyMzU3MTUzLWE1YWQtNDExNS04Y2RmLWU4NGNiNzRmZTliMSIsIm1heF9hZ2UiOjg2NDAwLCJhdWQiOiI4MjM1NzE1My1hNWFkLTQxMTUtOGNkZi1lODRjYjc0ZmU5YjEiLCJ1c2VyX2lkIjoiMTIzNDU2Nzg5MDEyQHd3dy5ib2EtaGFjay1hdHRhY2suY29tIiwiZ3JhbnRfaWQiOiI1ODBlZjk0Zi03Yjg3LTRjNTAtOGEwNi0yYWFmYzkzNzkwMjEiLCJzY29wZSI6ImFjY291bnRzIG9wZW5pZCIsImNvbnNlbnRfcmVmZXJlbmNlIjoiYWI2OWMyYzctNTQ2ZC00MTcwLTk0NWQtNTA2ZmUzOTUwMDI4IiwiZXhwIjoxNzIxNDU1MjQ4LCJpYXQiOjE3MjE0NTQ2NDgsImp0aSI6IjZmNDQ3NTljLTVhZGQtNDVhMi1hZmNiLTgzOGI2MDhkODM5MyIsInRlbmFudCI6Ik5hdFdlc3QifQ.sxz-C5btuZ2Z7tjlB1Pb0IPXyCtFYrGJHfxYVHGxgOozeDmaIOq2_3_Z9iTDmHsIpjkRzSfTEQkeV0-RZazyoQ7dPB6TmYLSE81GLvJUiQNA-XYeHzNo51KQY7hX03U8qEZqWc_cnz1xd_FCvc2KwdIdN_mmujzbq9qWEtRAlZomy_FifWVvwESW_-LIg9nIQkd_0bEGGXNcC3biHHbjJgSp3cE5YCMo9ItKVcBJsS8YHXbT7rNg8drEEw48_miTBOnaz_QY2bk5FK3m3REVjsP1lUJBdYhrIxWRQjbNE1CwffDCyyjlwFAvK3r3tbJduptc9knLcbn6IClWJ0dJnw";
         httpHeaders.set("Authorization", "Bearer " + token);
         HttpEntity<Object> entity = new HttpEntity<>(httpHeaders);
         ResponseEntity<Object> response = restTemplate.exchange("https://ob.sandbox.natwest.com/open-banking/v3.1/aisp/accounts", HttpMethod.GET, entity, Object.class);
+        System.out.println(response);
+        return response.getBody();
+    }
+
+    private Object fetchAccountDetails(String accountId) {
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.set("Authorization", "Bearer " + token);
+        HttpEntity<Object> entity = new HttpEntity<>(httpHeaders);
+        ResponseEntity<Object> response = restTemplate.exchange("https://ob.sandbox.natwest.com/open-banking/v3.1/aisp/accounts/" + accountId, HttpMethod.GET, entity, Object.class);
         System.out.println(response);
         return response.getBody();
     }
@@ -77,9 +165,8 @@ public class CompleteService {
             System.out.println(response);
             return response.getBody();
         } catch (Exception e) {
-            return "Offers couldn't be fetched. Offer information only available for Credit Card accounts";
+            return new ResponseEntity<>("Offers couldn't be fetched. Offer information only available for Credit Card accounts", HttpStatus.BAD_REQUEST);
         }
-
     }
 
     public Object fetchAccountStatements(String accountId) {
@@ -92,7 +179,7 @@ public class CompleteService {
             System.out.println(response);
             return response.getBody();
         } catch (Exception e) {
-            return "Statement couldn't be fetched. Statement information only available for Credit Card accounts";
+            return new ResponseEntity<>("Statement couldn't be fetched. Statement information only available for Credit Card accounts", HttpStatus.BAD_REQUEST);
         }
     }
 }

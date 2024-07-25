@@ -21,10 +21,20 @@ public class CompleteController {
         return completeService.fetchAccountTransactions(accountId);
     }
 
-    @GetMapping("/accounts")
-    private Object fetchAccounts() {
-        return completeService.fetchAccounts();
+//    @GetMapping("/accounts")
+//    private Object fetchAccounts() {
+//        return completeService.fetchAccounts();
+//    }
+
+    @GetMapping("/login")
+    private Object login(@RequestParam String username, @RequestParam String password) {
+        return completeService.login(username, password);
     }
+
+//    @GetMapping("/accounts")
+//    private List<Object> login(@RequestParam String username){
+//        return completeService.fetchAccountInfo(username);
+//    }
 
     @GetMapping("/accounts/{accountId}/cards")
     private Object fetchAccountCards(@PathVariable String accountId) {
