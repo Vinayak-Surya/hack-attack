@@ -1,8 +1,11 @@
 package com.hackathon.hack_attack.controller;
 
+import com.hackathon.hack_attack.entity.AccountInfo;
 import com.hackathon.hack_attack.service.CompleteService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RequestMapping
 @RestController
@@ -27,9 +30,20 @@ public class CompleteController {
 //    }
 
     @GetMapping("/login")
-    private Object login(@RequestParam String username, @RequestParam String password) {
+    private List<AccountInfo> login(@RequestParam String username, @RequestParam String password) {
         return completeService.login(username, password);
     }
+
+    @GetMapping("/accounts")
+    private List<AccountInfo> allAccounts() {
+        return completeService.accountInfos();
+    }
+
+    @PostMapping("/account")
+    private String accountOpen() {
+        return completeService.createTravelAccount();
+    }
+
 
 //    @GetMapping("/accounts")
 //    private List<Object> login(@RequestParam String username){
@@ -44,6 +58,11 @@ public class CompleteController {
     @GetMapping("/accounts/{accountId}/cards/{cardId}")
     private Object fetchAccountCardDetails(@PathVariable String accountId, @PathVariable String cards) {
         return completeService.fetchAccountCardDetails(accountId, cards);
+    }
+
+    @PostMapping("/fundTransfer")
+    private String fundTransfer(@RequestParam String amount) {
+        return completeService.fundTransfer(amount) == null ? "Failed" : "Successful";
     }
 
     @GetMapping("/accounts/{accountId}/offers")
