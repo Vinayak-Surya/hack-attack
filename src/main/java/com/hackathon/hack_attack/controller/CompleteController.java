@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Objects;
 
 @RequestMapping
 @RestController
@@ -14,20 +15,15 @@ public class CompleteController {
     @Autowired
     private CompleteService completeService;
 
-    @GetMapping("/accounts/{accountId}/balances")
-    private Object fetchAccountBalances(@PathVariable String accountId) {
-        return completeService.fetchAccountBalances(accountId);
-    }
+//    @GetMapping("/accounts/{accountId}/balances")
+//    private Object fetchAccountBalances(@PathVariable String accountId) {
+//        return completeService.fetchAccountBalances(accountId);
+//    }
 
     @GetMapping("/accounts/{accountId}/transactions")
     private Object fetchAccountTransactions(@PathVariable String accountId) {
         return completeService.fetchAccountTransactions(accountId);
     }
-
-//    @GetMapping("/accounts")
-//    private Object fetchAccounts() {
-//        return completeService.fetchAccounts();
-//    }
 
     @GetMapping("/login")
     private List<AccountInfo> login(@RequestParam String username, @RequestParam String password) {
@@ -39,39 +35,27 @@ public class CompleteController {
         return completeService.accountInfos();
     }
 
-    @PostMapping("/account")
-    private String accountOpen() {
-        return completeService.createTravelAccount();
+    @GetMapping("/isInsured")
+    private String isInsured() {
+        return completeService.isInsured();
     }
 
-
-//    @GetMapping("/accounts")
-//    private List<Object> login(@RequestParam String username){
-//        return completeService.fetchAccountInfo(username);
-//    }
-
-    @GetMapping("/accounts/{accountId}/cards")
-    private Object fetchAccountCards(@PathVariable String accountId) {
-        return completeService.fetchAccountCards(accountId);
+    @PostMapping("/openTravel")
+    private String accountOpen(@RequestParam String amount, @RequestParam String period) {
+        return completeService.travelInsuranceAccountRouter(amount, period);
     }
 
-    @GetMapping("/accounts/{accountId}/cards/{cardId}")
-    private Object fetchAccountCardDetails(@PathVariable String accountId, @PathVariable String cards) {
-        return completeService.fetchAccountCardDetails(accountId, cards);
+    @PostMapping("/transferToTravelAccount")
+    private String transferToAccount(@RequestParam String amount) {
+        return completeService.fundTransfer(amount, 0) == null ? "Failed" : "Successful";
     }
 
-    @PostMapping("/fundTransfer")
-    private String fundTransfer(@RequestParam String amount) {
-        return completeService.fundTransfer(amount) == null ? "Failed" : "Successful";
-    }
-
-    @GetMapping("/accounts/{accountId}/offers")
-    private Object fetchAccountOffers(@PathVariable String accountId) {
-        return completeService.fetchAccountOffers(accountId);
-    }
-
-    @GetMapping("/accounts/{accountId}/statements")
-    private Object fetchAccountStatements(@PathVariable String accountId) {
-        return completeService.fetchAccountStatements(accountId);
+    @PostMapping("/transferToTravelInsurance")
+    private String transferToInsurance(@RequestParam String period) {
+        String amount = null;
+        if (Objects.equals(period, "3")) amount = "15";
+        if (Objects.equals(period, "6")) amount = "25";
+        if (Objects.equals(period, "12")) amount = "45";
+        return amount != null ? completeService.fundTransfer(amount, Integer.parseInt(period)) == null ? "Failed" : "Successful" : "Invalid Period";
     }
 }

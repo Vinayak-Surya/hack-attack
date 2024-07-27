@@ -5,20 +5,25 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hackathon.hack_attack.entity.AccountInfo;
 import com.hackathon.hack_attack.entity.LoginCredentials;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.*;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 @Service
 public class CompleteService {
     private final List<LoginCredentials> loginCredentialsList;
     String token = null;
-
     String paymentToken = null;
     JsonNode accounts = null;
     String userId = null;
+
+    Map<String, String> insuranceMap = new HashMap<>();
     @Autowired
     private RestTemplate restTemplate;
 
@@ -29,10 +34,37 @@ public class CompleteService {
         this.loginCredentialsList = new ArrayList<>(List.of(new LoginCredentials[]{loginCredentials1, loginCredentials2, loginCredentials3}));
     }
 
+    public List<AccountInfo> login(String username, String password) {
+        userId = loginCredentialsList.stream().filter(loginCredentials -> Objects.equals(loginCredentials.getUsername(), username)
+                && Objects.equals(loginCredentials.getPassword(), password)).findFirst().map(LoginCredentials::getUserId).orElse(null);
+        if (userId != null) return accountInfos();
+        return null;
+    }
 
-    // -------------------------------- ACCOUNT APIS --------------------------------
+    public String travelInsuranceAccountRouter(String amount, String period) {
+        try {
+            String travelAccountStatus = createTravelAccount();
+            String fundTransferStatus = !Objects.equals(amount, "0") ? fundTransfer(amount, 0) : "";
+            String insuranceAmount = null;
+            if (Objects.equals(period, "3")) insuranceAmount = "15";
+            else if (Objects.equals(period, "6")) insuranceAmount = "25";
+            else if (Objects.equals(period, "12")) insuranceAmount = "40";
+            String insuranceStatus = null;
+            if (insuranceAmount != null) {
+                insuranceStatus = fundTransfer(insuranceAmount, Integer.parseInt(period));
+            }
+            System.out.println(travelAccountStatus);
+            System.out.println(fundTransferStatus);
+            System.out.println(insuranceStatus);
+            return Objects.equals(travelAccountStatus, "Successful") && fundTransferStatus != null && insuranceStatus != null ? "Successful" : "Failed";
+        } catch (Exception e) {
+            return "Failed";
+        }
+    }
 
     public List<AccountInfo> accountInfos() {
+        accounts = fetchAccounts();
+        System.out.println(accounts);
         List<AccountInfo> accountInfos = new ArrayList<>();
         for (int i = 0; i < accounts.size(); i++) {
             String accountNumber = accounts.get(i).get("Account").get(0).get("Identification").asText();
@@ -44,17 +76,6 @@ public class CompleteService {
             accountInfos.add(new AccountInfo(accountId, accountNumber, balance, accountType, accountSubType));
         }
         return accountInfos;
-    }
-
-    public List<AccountInfo> login(String username, String password) {
-        userId = loginCredentialsList.stream().filter(loginCredentials -> Objects.equals(loginCredentials.getUsername(), username)
-                && Objects.equals(loginCredentials.getPassword(), password)).findFirst().map(LoginCredentials::getUserId).orElse(null);
-        if (userId != null) {
-            authorizationSteps(userId);
-            accounts = fetchAccounts();
-            return accountInfos();
-        }
-        return null;
     }
 
     public String createTravelAccount() {
@@ -114,7 +135,6 @@ public class CompleteService {
             entity = new HttpEntity<>(body, httpHeaders);
             System.out.println(entity);
             System.out.println(restTemplate.exchange("https://ob.sandbox.natwest.com/open-banking/v3.1/aisp/accounts", HttpMethod.POST, entity, String.class).getBody());
-            accounts = fetchAccounts();
             return "Successful";
         } catch (Exception e) {
             return "Failed";
@@ -181,11 +201,11 @@ public class CompleteService {
 
     public JsonNode fetchAccounts() {
         try {
+            authorizationSteps(userId);
             HttpHeaders httpHeaders = new HttpHeaders();
             httpHeaders.set("Authorization", "Bearer " + token);
             HttpEntity<Object> entity = new HttpEntity<>(httpHeaders);
             ResponseEntity<String> response = restTemplate.exchange("https://ob.sandbox.natwest.com/open-banking/v3.1/aisp/accounts", HttpMethod.GET, entity, String.class);
-            System.out.println(response);
             return new ObjectMapper().readTree(response.getBody()).get("Data").get("Account");
         } catch (Exception e) {
             System.out.println(Arrays.toString(e.getStackTrace()));
@@ -193,10 +213,12 @@ public class CompleteService {
         return null;
     }
 
-    public String fundTransfer(String amount) {
+    public String fundTransfer(String amount, Integer period) {
         try {
-
+            accounts = fetchAccounts();
             if (accounts != null) {
+                System.out.println(amount);
+                System.out.println(period);
                 System.out.println("Accounts Present");
                 JsonNode jsonNode = accounts;
                 String fromId = null, toId = null;
@@ -205,13 +227,22 @@ public class CompleteService {
                     String accountType = jsonNode.get(i).get("AccountSubType").asText();
                     if (Objects.equals(accountType, "Savings"))
                         fromId = jsonNode.get(i).get("Account").get(0).get("Identification").asText();
-                    else if (Objects.equals(accountType, "CurrentAccount"))
+                    else if (period == 0 && Objects.equals(accountType, "CurrentAccount"))
                         toId = jsonNode.get(i).get("Account").get(0).get("Identification").asText();
                 }
+                toId = period != 0 ? "51234512345660" : toId;
                 if (fromId != null && toId != null) {
                     System.out.println("From - " + fromId + " To - " + toId);
-                    return paymentInitAndAuth(amount, fromId, toId);
+                    String paymentStatus = paymentInitAndAuth(amount, fromId, toId);
+
+                    if (period != 0 && paymentStatus != null) {
+                        Calendar cal = Calendar.getInstance();
+                        cal.setTime(new Date());
+                        cal.add(Calendar.MONTH, period);
+                        insuranceMap.put(userId, new SimpleDateFormat("yyyy-MM-dd").format(cal.getTime()));
+                    }
                 }
+                return "Success";
             }
         } catch (Exception e) {
             System.out.println(Arrays.toString(e.getStackTrace()));
@@ -347,52 +378,7 @@ public class CompleteService {
         return response.getBody();
     }
 
-    // -------------------------------------- CARD APIS -------------------------------------
-    public Object fetchAccountCards(String accountId) {
-//        String token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHAiOiJIYWNrIEF0dGFjayIsIm9yZyI6Ind3dy5ib2EtaGFjay1hdHRhY2suY29tIiwiaXNzIjoiaHR0cHM6Ly9hcGkuc2FuZGJveC5uYXR3ZXN0LmNvbSIsInRva2VuX3R5cGUiOiJBQ0NFU1NfVE9LRU4iLCJleHRlcm5hbF9jbGllbnRfaWQiOiJLODRYMDg3aXZPci11TUNyQXlDV1pXZFg1RjdBaVhmdXdIX1NQbVJ5QWVNPSIsImNsaWVudF9pZCI6IjgyMzU3MTUzLWE1YWQtNDExNS04Y2RmLWU4NGNiNzRmZTliMSIsIm1heF9hZ2UiOjg2NDAwLCJhdWQiOiI4MjM1NzE1My1hNWFkLTQxMTUtOGNkZi1lODRjYjc0ZmU5YjEiLCJ1c2VyX2lkIjoiMTIzNDU2Nzg5MDEyQHd3dy5ib2EtaGFjay1hdHRhY2suY29tIiwiZ3JhbnRfaWQiOiIzNzBjYTgxMS1lYjRiLTQwNmEtOTEyNC05MDkyMDU2MmI2MTYiLCJzY29wZSI6ImFjY291bnRzIG9wZW5pZCIsImNvbnNlbnRfcmVmZXJlbmNlIjoiNjM4ZGI5ZjktMDgxYy00NGRiLWI5ZjYtZWNlYjJmNmNhYTA1IiwiZXhwIjoxNzIxNzg3NTY3LCJpYXQiOjE3MjE3ODY5NjcsImp0aSI6IjFiNTE3MGNiLWY5MTctNDAzNC05OTY4LTU5ZGMxYjAwNTVhZiIsInRlbmFudCI6Ik5hdFdlc3QifQ.GLC11mj1A_FiP9KVzNkGN4fTprO4xA0czb8iBJEzuSouEE2Ak7JFiidFuIKrPlXvnenpCgAeoc22gjkw4Lk3NlEEMXeE8NT_N24VtgFA7aijygfzBpgMD1hR4jMxMfdgU8q5vZOTBjd_DCpRMnxaziUsMp06cletT2uSsFEMTIYvXGUXs77tkv5azUEE7ZWh1Wsya_2UYSlkWfYHpVgremU2wxzLZa8uSU_S7zCHa9QTwaps4GzqK4v43uRjuhHhVzIUe_riawK6Xf6Xvi7yFWXWKcFL2SbuR47cHIjYnfABglpa7UIsU5v_l2mk3DN_tVY0Wc4ZJNyuNCQARfGAbg";
-        HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.set("Authorization", "Bearer " + token);
-        HttpEntity<Object> entity = new HttpEntity<>(httpHeaders);
-        ResponseEntity<Object> response = restTemplate.exchange("https://ob.sandbox.natwest.com/open-banking/v3.1/aisp/accounts/" + accountId + "/cards", HttpMethod.GET, entity, Object.class);
-        System.out.println(response);
-        return response.getBody();
-    }
-
-    public Object fetchAccountCardDetails(String accountId, String cardId) {
-//        String token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHAiOiJIYWNrIEF0dGFjayIsIm9yZyI6Ind3dy5ib2EtaGFjay1hdHRhY2suY29tIiwiaXNzIjoiaHR0cHM6Ly9hcGkuc2FuZGJveC5uYXR3ZXN0LmNvbSIsInRva2VuX3R5cGUiOiJBQ0NFU1NfVE9LRU4iLCJleHRlcm5hbF9jbGllbnRfaWQiOiJLODRYMDg3aXZPci11TUNyQXlDV1pXZFg1RjdBaVhmdXdIX1NQbVJ5QWVNPSIsImNsaWVudF9pZCI6IjgyMzU3MTUzLWE1YWQtNDExNS04Y2RmLWU4NGNiNzRmZTliMSIsIm1heF9hZ2UiOjg2NDAwLCJhdWQiOiI4MjM1NzE1My1hNWFkLTQxMTUtOGNkZi1lODRjYjc0ZmU5YjEiLCJ1c2VyX2lkIjoiMTIzNDU2Nzg5MDEyQHd3dy5ib2EtaGFjay1hdHRhY2suY29tIiwiZ3JhbnRfaWQiOiIzNzBjYTgxMS1lYjRiLTQwNmEtOTEyNC05MDkyMDU2MmI2MTYiLCJzY29wZSI6ImFjY291bnRzIG9wZW5pZCIsImNvbnNlbnRfcmVmZXJlbmNlIjoiNjM4ZGI5ZjktMDgxYy00NGRiLWI5ZjYtZWNlYjJmNmNhYTA1IiwiZXhwIjoxNzIxNzg3NTY3LCJpYXQiOjE3MjE3ODY5NjcsImp0aSI6IjFiNTE3MGNiLWY5MTctNDAzNC05OTY4LTU5ZGMxYjAwNTVhZiIsInRlbmFudCI6Ik5hdFdlc3QifQ.GLC11mj1A_FiP9KVzNkGN4fTprO4xA0czb8iBJEzuSouEE2Ak7JFiidFuIKrPlXvnenpCgAeoc22gjkw4Lk3NlEEMXeE8NT_N24VtgFA7aijygfzBpgMD1hR4jMxMfdgU8q5vZOTBjd_DCpRMnxaziUsMp06cletT2uSsFEMTIYvXGUXs77tkv5azUEE7ZWh1Wsya_2UYSlkWfYHpVgremU2wxzLZa8uSU_S7zCHa9QTwaps4GzqK4v43uRjuhHhVzIUe_riawK6Xf6Xvi7yFWXWKcFL2SbuR47cHIjYnfABglpa7UIsU5v_l2mk3DN_tVY0Wc4ZJNyuNCQARfGAbg";
-        HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.set("Authorization", "Bearer " + token);
-        HttpEntity<Object> entity = new HttpEntity<>(httpHeaders);
-        ResponseEntity<Object> response = restTemplate.exchange("https://ob.sandbox.natwest.com/open-banking/v3.1/aisp/accounts/" + accountId + "/cards/" + cardId, HttpMethod.GET, entity, Object.class);
-        System.out.println(response);
-        return response.getBody();
-    }
-
-    public Object fetchAccountOffers(String accountId) {
-//        String token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHAiOiJIYWNrIEF0dGFjayIsIm9yZyI6Ind3dy5ib2EtaGFjay1hdHRhY2suY29tIiwiaXNzIjoiaHR0cHM6Ly9hcGkuc2FuZGJveC5uYXR3ZXN0LmNvbSIsInRva2VuX3R5cGUiOiJBQ0NFU1NfVE9LRU4iLCJleHRlcm5hbF9jbGllbnRfaWQiOiJLODRYMDg3aXZPci11TUNyQXlDV1pXZFg1RjdBaVhmdXdIX1NQbVJ5QWVNPSIsImNsaWVudF9pZCI6IjgyMzU3MTUzLWE1YWQtNDExNS04Y2RmLWU4NGNiNzRmZTliMSIsIm1heF9hZ2UiOjg2NDAwLCJhdWQiOiI4MjM1NzE1My1hNWFkLTQxMTUtOGNkZi1lODRjYjc0ZmU5YjEiLCJ1c2VyX2lkIjoiMTIzNDU2Nzg5MDEyQHd3dy5ib2EtaGFjay1hdHRhY2suY29tIiwiZ3JhbnRfaWQiOiIzNzBjYTgxMS1lYjRiLTQwNmEtOTEyNC05MDkyMDU2MmI2MTYiLCJzY29wZSI6ImFjY291bnRzIG9wZW5pZCIsImNvbnNlbnRfcmVmZXJlbmNlIjoiNjM4ZGI5ZjktMDgxYy00NGRiLWI5ZjYtZWNlYjJmNmNhYTA1IiwiZXhwIjoxNzIxNzg3NTY3LCJpYXQiOjE3MjE3ODY5NjcsImp0aSI6IjFiNTE3MGNiLWY5MTctNDAzNC05OTY4LTU5ZGMxYjAwNTVhZiIsInRlbmFudCI6Ik5hdFdlc3QifQ.GLC11mj1A_FiP9KVzNkGN4fTprO4xA0czb8iBJEzuSouEE2Ak7JFiidFuIKrPlXvnenpCgAeoc22gjkw4Lk3NlEEMXeE8NT_N24VtgFA7aijygfzBpgMD1hR4jMxMfdgU8q5vZOTBjd_DCpRMnxaziUsMp06cletT2uSsFEMTIYvXGUXs77tkv5azUEE7ZWh1Wsya_2UYSlkWfYHpVgremU2wxzLZa8uSU_S7zCHa9QTwaps4GzqK4v43uRjuhHhVzIUe_riawK6Xf6Xvi7yFWXWKcFL2SbuR47cHIjYnfABglpa7UIsU5v_l2mk3DN_tVY0Wc4ZJNyuNCQARfGAbg";
-        try {
-            HttpHeaders httpHeaders = new HttpHeaders();
-            httpHeaders.set("Authorization", "Bearer " + token);
-            HttpEntity<Object> entity = new HttpEntity<>(httpHeaders);
-            ResponseEntity<Object> response = restTemplate.exchange("https://ob.sandbox.natwest.com/open-banking/v3.1/aisp/accounts/" + accountId + "/offers", HttpMethod.GET, entity, Object.class);
-            System.out.println(response);
-            return response.getBody();
-        } catch (Exception e) {
-            return new ResponseEntity<>("Offers couldn't be fetched. Offer information only available for Credit Card accounts", HttpStatus.BAD_REQUEST);
-        }
-    }
-
-    public Object fetchAccountStatements(String accountId) {
-//        String token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHAiOiJIYWNrIEF0dGFjayIsIm9yZyI6Ind3dy5ib2EtaGFjay1hdHRhY2suY29tIiwiaXNzIjoiaHR0cHM6Ly9hcGkuc2FuZGJveC5uYXR3ZXN0LmNvbSIsInRva2VuX3R5cGUiOiJBQ0NFU1NfVE9LRU4iLCJleHRlcm5hbF9jbGllbnRfaWQiOiJLODRYMDg3aXZPci11TUNyQXlDV1pXZFg1RjdBaVhmdXdIX1NQbVJ5QWVNPSIsImNsaWVudF9pZCI6IjgyMzU3MTUzLWE1YWQtNDExNS04Y2RmLWU4NGNiNzRmZTliMSIsIm1heF9hZ2UiOjg2NDAwLCJhdWQiOiI4MjM1NzE1My1hNWFkLTQxMTUtOGNkZi1lODRjYjc0ZmU5YjEiLCJ1c2VyX2lkIjoiMTIzNDU2Nzg5MDEyQHd3dy5ib2EtaGFjay1hdHRhY2suY29tIiwiZ3JhbnRfaWQiOiIzNzBjYTgxMS1lYjRiLTQwNmEtOTEyNC05MDkyMDU2MmI2MTYiLCJzY29wZSI6ImFjY291bnRzIG9wZW5pZCIsImNvbnNlbnRfcmVmZXJlbmNlIjoiNjM4ZGI5ZjktMDgxYy00NGRiLWI5ZjYtZWNlYjJmNmNhYTA1IiwiZXhwIjoxNzIxNzg3NTY3LCJpYXQiOjE3MjE3ODY5NjcsImp0aSI6IjFiNTE3MGNiLWY5MTctNDAzNC05OTY4LTU5ZGMxYjAwNTVhZiIsInRlbmFudCI6Ik5hdFdlc3QifQ.GLC11mj1A_FiP9KVzNkGN4fTprO4xA0czb8iBJEzuSouEE2Ak7JFiidFuIKrPlXvnenpCgAeoc22gjkw4Lk3NlEEMXeE8NT_N24VtgFA7aijygfzBpgMD1hR4jMxMfdgU8q5vZOTBjd_DCpRMnxaziUsMp06cletT2uSsFEMTIYvXGUXs77tkv5azUEE7ZWh1Wsya_2UYSlkWfYHpVgremU2wxzLZa8uSU_S7zCHa9QTwaps4GzqK4v43uRjuhHhVzIUe_riawK6Xf6Xvi7yFWXWKcFL2SbuR47cHIjYnfABglpa7UIsU5v_l2mk3DN_tVY0Wc4ZJNyuNCQARfGAbg";
-        try {
-            HttpHeaders httpHeaders = new HttpHeaders();
-            httpHeaders.set("Authorization", "Bearer " + token);
-            HttpEntity<Object> entity = new HttpEntity<>(httpHeaders);
-            ResponseEntity<Object> response = restTemplate.exchange("https://ob.sandbox.natwest.com/open-banking/v3.1/aisp/accounts/" + accountId + "/statements", HttpMethod.GET, entity, Object.class);
-            System.out.println(response);
-            return response.getBody();
-        } catch (Exception e) {
-            return new ResponseEntity<>("Statement couldn't be fetched. Statement information only available for Credit Card accounts", HttpStatus.BAD_REQUEST);
-        }
+    public String isInsured() {
+        return userId != null ? insuranceMap.getOrDefault(userId, "") : "";
     }
 }
