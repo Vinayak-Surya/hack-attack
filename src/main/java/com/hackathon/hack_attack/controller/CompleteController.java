@@ -1,5 +1,6 @@
 package com.hackathon.hack_attack.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.hackathon.hack_attack.entity.AccountInfo;
 import com.hackathon.hack_attack.service.CompleteService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +22,7 @@ public class CompleteController {
 //    }
 
     @GetMapping("/accounts/{accountId}/transactions")
-    private Object fetchAccountTransactions(@PathVariable String accountId) {
+    private JsonNode fetchAccountTransactions(@PathVariable String accountId) {
         return completeService.fetchAccountTransactions(accountId);
     }
 
