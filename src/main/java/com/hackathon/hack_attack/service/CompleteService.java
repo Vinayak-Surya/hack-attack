@@ -63,19 +63,23 @@ public class CompleteService {
     }
 
     public List<AccountInfo> accountInfos() {
-        accounts = fetchAccounts();
-        System.out.println(accounts);
-        List<AccountInfo> accountInfos = new ArrayList<>();
-        for (int i = 0; i < accounts.size(); i++) {
-            String accountNumber = accounts.get(i).get("Account").get(0).get("Identification").asText();
-            String accountType = accounts.get(i).get("AccountType").asText();
-            String accountId = accounts.get(i).get("AccountId").asText();
-            String accountSubType = accounts.get(i).get("AccountSubType").asText();
-            accountSubType = Objects.equals(accountSubType, "CurrentAccount") ? "TravelAccount" : accountSubType;
-            String balance = fetchAccountBalances(accounts.get(i).get("AccountId").asText());
-            accountInfos.add(new AccountInfo(accountId, accountNumber, balance, accountType, accountSubType));
+        try {
+            accounts = fetchAccounts();
+            System.out.println(accounts);
+            List<AccountInfo> accountInfos = new ArrayList<>();
+            for (int i = 0; i < accounts.size(); i++) {
+                String accountNumber = accounts.get(i).get("Account").get(0).get("Identification").asText();
+                String accountType = accounts.get(i).get("AccountType").asText();
+                String accountId = accounts.get(i).get("AccountId").asText();
+                String accountSubType = accounts.get(i).get("AccountSubType").asText();
+                accountSubType = Objects.equals(accountSubType, "CurrentAccount") ? "TravelAccount" : accountSubType;
+                String balance = fetchAccountBalances(accounts.get(i).get("AccountId").asText());
+                accountInfos.add(new AccountInfo(accountId, accountNumber, balance, accountType, accountSubType));
+            }
+            return accountInfos;
+        } catch (Exception ignored) {
         }
-        return accountInfos;
+        return null;
     }
 
     public String createTravelAccount() {
