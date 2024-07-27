@@ -41,17 +41,17 @@ public class CompleteService {
         return "Failed";
     }
 
-    public String travelInsuranceAccountRouter(String amount, String period) {
+    public String travelInsuranceAccountRouter(String amount, String period, String startDate) {
         try {
             String travelAccountStatus = createTravelAccount();
-            String fundTransferStatus = !Objects.equals(amount, "0") ? fundTransfer(amount, 0) : "";
+            String fundTransferStatus = !Objects.equals(amount, "0") ? fundTransfer(amount, 0, "X") : "";
             String insuranceAmount = null;
-            if (Objects.equals(period, "3")) insuranceAmount = "15";
-            else if (Objects.equals(period, "6")) insuranceAmount = "25";
-            else if (Objects.equals(period, "12")) insuranceAmount = "40";
+            if (Objects.equals(period, "3")) insuranceAmount = "40";
+            else if (Objects.equals(period, "6")) insuranceAmount = "65";
+            else if (Objects.equals(period, "12")) insuranceAmount = "100";
             String insuranceStatus = null;
             if (insuranceAmount != null) {
-                insuranceStatus = fundTransfer(insuranceAmount, Integer.parseInt(period));
+                insuranceStatus = fundTransfer(insuranceAmount, Integer.parseInt(period), startDate);
             }
             System.out.println(travelAccountStatus);
             System.out.println(fundTransferStatus);
@@ -217,7 +217,7 @@ public class CompleteService {
         return null;
     }
 
-    public String fundTransfer(String amount, Integer period) {
+    public String fundTransfer(String amount, Integer period, String startDate) {
         try {
             accounts = fetchAccounts();
             if (accounts != null) {
@@ -238,12 +238,11 @@ public class CompleteService {
                 if (fromId != null && toId != null) {
                     System.out.println("From - " + fromId + " To - " + toId);
                     String paymentStatus = paymentInitAndAuth(amount, fromId, toId);
-
                     if (period != 0 && paymentStatus != null) {
                         Calendar cal = Calendar.getInstance();
-                        cal.setTime(new Date());
+                        cal.setTime(new SimpleDateFormat("yyyy/MM/dd").parse(startDate));
                         cal.add(Calendar.MONTH, period);
-                        insuranceMap.put(userId, new SimpleDateFormat("yyyy-MM-dd").format(cal.getTime()));
+                        insuranceMap.put(userId, startDate + "-" + new SimpleDateFormat("yyyy/MM/dd").format(cal.getTime()));
                     }
                 }
                 return "Success";
