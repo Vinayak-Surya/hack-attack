@@ -26,7 +26,7 @@ public class CompleteController {
     }
 
     @GetMapping("/login")
-    private List<AccountInfo> login(@RequestParam String username, @RequestParam String password) {
+    private String login(@RequestParam String username, @RequestParam String password) {
         return completeService.login(username, password);
     }
 

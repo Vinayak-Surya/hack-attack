@@ -34,11 +34,11 @@ public class CompleteService {
         this.loginCredentialsList = new ArrayList<>(List.of(new LoginCredentials[]{loginCredentials1, loginCredentials2, loginCredentials3}));
     }
 
-    public List<AccountInfo> login(String username, String password) {
+    public String login(String username, String password) {
         userId = loginCredentialsList.stream().filter(loginCredentials -> Objects.equals(loginCredentials.getUsername(), username)
                 && Objects.equals(loginCredentials.getPassword(), password)).findFirst().map(LoginCredentials::getUserId).orElse(null);
-        if (userId != null) return accountInfos();
-        return null;
+        if (userId != null) return "Successful";
+        return "Failed";
     }
 
     public String travelInsuranceAccountRouter(String amount, String period) {
