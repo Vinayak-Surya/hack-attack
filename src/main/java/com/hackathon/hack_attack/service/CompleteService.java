@@ -262,7 +262,7 @@ public class CompleteService {
             HttpEntity<Object> entity = new HttpEntity<>(accessTokenBody, httpHeaders);
             String accessToken = objectMapper.readTree(restTemplate.exchange("https://ob.sandbox.natwest.com/token", HttpMethod.POST, entity, String.class).getBody()).get("access_token").asText();
             System.out.println(accessToken);
-            String paymentTo = Objects.equals(from, "50000012345602") ? "Credit" : "Debit";
+            String paymentTo = "FITPASS CO.";
 
             // Payment Request
             httpHeaders = new HttpHeaders();
