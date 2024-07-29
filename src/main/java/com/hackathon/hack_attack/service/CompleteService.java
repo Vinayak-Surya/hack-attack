@@ -12,7 +12,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.text.SimpleDateFormat;
 import java.util.*;
 
 @Service
@@ -23,7 +22,7 @@ public class CompleteService {
     JsonNode accounts = null;
     String userId = null;
 
-    Map<String, String> insuranceMap = new HashMap<>();
+    Map<String, String> creditCardHashMap = new HashMap<>();
     @Autowired
     private RestTemplate restTemplate;
 
@@ -41,40 +40,23 @@ public class CompleteService {
         return "Failed";
     }
 
-    public String travelInsuranceAccountRouter(String amount, String period, String startDate) {
-        try {
-            String travelAccountStatus = createTravelAccount();
-            String fundTransferStatus = !Objects.equals(amount, "0") ? fundTransfer(amount, 0, "X") : "";
-            String insuranceAmount = null;
-            if (Objects.equals(period, "3")) insuranceAmount = "40";
-            else if (Objects.equals(period, "6")) insuranceAmount = "65";
-            else if (Objects.equals(period, "12")) insuranceAmount = "100";
-            String insuranceStatus = null;
-            if (insuranceAmount != null) {
-                insuranceStatus = fundTransfer(insuranceAmount, Integer.parseInt(period), startDate);
-            }
-            System.out.println(travelAccountStatus);
-            System.out.println(fundTransferStatus);
-            System.out.println(insuranceStatus);
-            return Objects.equals(travelAccountStatus, "Successful") && fundTransferStatus != null && insuranceStatus != null ? "Successful" : "Failed";
-        } catch (Exception e) {
-            return "Failed";
-        }
-    }
-
     public List<AccountInfo> accountInfos() {
         try {
             accounts = fetchAccounts();
             System.out.println(accounts);
             List<AccountInfo> accountInfos = new ArrayList<>();
             for (int i = 0; i < accounts.size(); i++) {
-                String accountNumber = accounts.get(i).get("Account").get(0).get("Identification").asText();
-                String accountType = accounts.get(i).get("AccountType").asText();
-                String accountId = accounts.get(i).get("AccountId").asText();
                 String accountSubType = accounts.get(i).get("AccountSubType").asText();
-                accountSubType = Objects.equals(accountSubType, "CurrentAccount") ? "TravelAccount" : accountSubType;
+                String accountId = accounts.get(i).get("AccountId").asText();
+                String accountNumber = accounts.get(i).get("Account").get(0).get("Identification").asText();
+                if (Objects.equals(accountSubType, "CurrentAccount") && creditCardHashMap.containsKey(userId)) {
+                    accountSubType = Objects.equals(accountSubType, "CurrentAccount") ? "CreditCard" : accountSubType;
+                    accountNumber = creditCardHashMap.get(userId);
+                }
+                String accountType = accounts.get(i).get("AccountType").asText();
                 String balance = fetchAccountBalances(accounts.get(i).get("AccountId").asText());
-                accountInfos.add(new AccountInfo(accountId, accountNumber, balance, accountType, accountSubType));
+                if (!Objects.equals(accountSubType, "CurrentAccount"))
+                    accountInfos.add(new AccountInfo(accountId, accountNumber, balance, accountType, accountSubType));
             }
             return accountInfos;
         } catch (Exception ignored) {
@@ -82,8 +64,17 @@ public class CompleteService {
         return null;
     }
 
-    public String createTravelAccount() {
+    public String createCreditCard() {
         try {
+            JsonNode accounts = fetchAccounts();
+            String accountId = null;
+            System.out.println(accounts);
+            for (int i = 0; i < accounts.size(); i++) {
+                if (accounts.get(i).get("AccountSubType").asText().equals("CurrentAccount"))
+                    accountId = accounts.get(i).get("AccountId").asText();
+            }
+            System.out.println(accountId);
+
             String clientId = "K84X087ivOr-uMCrAyCWZWdX5F7AiXfuwH_SPmRyAeM=", clientSecret = "korE_IPmOfR1QYAnTsWef8Efrq79LnTQt3KOSBMZ5UU=";
             ObjectMapper objectMapper = new ObjectMapper();
             System.out.println("Process Start!");
@@ -105,7 +96,7 @@ public class CompleteService {
                       "Data": {
                         "Permissions": [
                           "ReadAccountsBasic",
-                           "NWGOpenAccount"
+                          "ManageCards"
                         ]
                       },
                       "Risk": {}
@@ -128,17 +119,25 @@ public class CompleteService {
             String tokenOpen = objectMapper.readTree(restTemplate.exchange("https://ob.sandbox.natwest.com/token", HttpMethod.POST, entity, String.class).getBody()).get("access_token").asText();
             System.out.println(tokenOpen);
 
+
             httpHeaders = new HttpHeaders();
             httpHeaders.set("Authorization", "Bearer " + tokenOpen);
             httpHeaders.set("Content-Type", "application/json");
             String body = """
                     {
-                        "name" : "My Travel Account"
+                       "action":"CARD_REQUEST"
                     }
                     """;
             entity = new HttpEntity<>(body, httpHeaders);
             System.out.println(entity);
-            System.out.println(restTemplate.exchange("https://ob.sandbox.natwest.com/open-banking/v3.1/aisp/accounts", HttpMethod.POST, entity, String.class).getBody());
+            System.out.println(restTemplate.exchange("https://ob.sandbox.natwest.com/open-banking/v3.1/aisp/accounts/" + accountId + "/cards", HttpMethod.POST, entity, String.class).getBody());
+            System.out.println("Created Credit Card");
+            httpHeaders = new HttpHeaders();
+            httpHeaders.set("Authorization", "Bearer " + tokenOpen);
+            entity = new HttpEntity<>(httpHeaders);
+            String cardNumber = new ObjectMapper().readTree(restTemplate.exchange("https://ob.sandbox.natwest.com/open-banking/v3.1/aisp/accounts/" + accountId + "/cards", HttpMethod.GET, entity, String.class).getBody()).get("cards").get(0).get("cardNumber").asText();
+            System.out.println(cardNumber);
+            creditCardHashMap.put(userId, cardNumber);
             return "Successful";
         } catch (Exception e) {
             return "Failed";
@@ -217,12 +216,13 @@ public class CompleteService {
         return null;
     }
 
-    public String fundTransfer(String amount, Integer period, String startDate) {
+    public String fundTransfer(String amount, String type) {
         try {
+            if (Objects.equals(type, "credit") && !creditCardHashMap.containsKey(userId))
+                return "No credit card";
             accounts = fetchAccounts();
             if (accounts != null) {
                 System.out.println(amount);
-                System.out.println(period);
                 System.out.println("Accounts Present");
                 JsonNode jsonNode = accounts;
                 String fromId = null, toId = null;
@@ -231,19 +231,15 @@ public class CompleteService {
                     String accountType = jsonNode.get(i).get("AccountSubType").asText();
                     if (Objects.equals(accountType, "Savings"))
                         fromId = jsonNode.get(i).get("Account").get(0).get("Identification").asText();
-                    else if (period == 0 && Objects.equals(accountType, "CurrentAccount"))
+                    else if (Objects.equals(accountType, "CurrentAccount"))
                         toId = jsonNode.get(i).get("Account").get(0).get("Identification").asText();
                 }
-                toId = period != 0 ? "51234512345660" : toId;
+
+                if (Objects.equals(type, "debit")) toId = "50000012345602";
+                else if (Objects.equals(type, "credit")) fromId = "50000012345602";
                 if (fromId != null && toId != null) {
                     System.out.println("From - " + fromId + " To - " + toId);
                     String paymentStatus = paymentInitAndAuth(amount, fromId, toId);
-                    if (period != 0 && paymentStatus != null) {
-                        Calendar cal = Calendar.getInstance();
-                        cal.setTime(new SimpleDateFormat("yyyy/MM/dd").parse(startDate));
-                        cal.add(Calendar.MONTH, period);
-                        insuranceMap.put(userId, startDate + "-" + new SimpleDateFormat("yyyy/MM/dd").format(cal.getTime()));
-                    }
                 }
                 return "Success";
             }
@@ -266,7 +262,7 @@ public class CompleteService {
             HttpEntity<Object> entity = new HttpEntity<>(accessTokenBody, httpHeaders);
             String accessToken = objectMapper.readTree(restTemplate.exchange("https://ob.sandbox.natwest.com/token", HttpMethod.POST, entity, String.class).getBody()).get("access_token").asText();
             System.out.println(accessToken);
-            String paymentTo = Objects.equals(to, "51234512345660") ? "Travel Insurance" : "Travel Account";
+            String paymentTo = Objects.equals(from, "50000012345602") ? "Credit" : "Debit";
 
             // Payment Request
             httpHeaders = new HttpHeaders();
@@ -305,7 +301,7 @@ public class CompleteService {
 
             // Approval
             String message = restTemplate.getForObject(String.format("https://api.sandbox.natwest.com/authorize?client_id=%s&response_type=code id_token&scope=openid payments&redirect_uri=%s&state=ABC&request=%s&authorization_mode=AUTO_POSTMAN&authorization_account=%s&authorization_username=%s@www.boa-hack-attack.com",
-                    clientId, "https://boa-hack-attack.com/login", consentId, from, userId), String.class);
+                    clientId, "https://boa-hack-attack.com/login", consentId, from, from.equals("50000012345602") ? "123456789012" : userId), String.class);
             System.out.println(message);
             assert message != null;
             String authCode = message.substring(message.indexOf("=") + 1, message.indexOf("id_token"));
@@ -314,7 +310,6 @@ public class CompleteService {
             // TOKEN
             String tokenBody = String.format("client_id=%s&client_secret=%s&redirect_uri=%s&grant_type=authorization_code&code=%s", clientId, clientSecret, "https://boa-hack-attack.com/login", authCode);
             httpHeaders = new HttpHeaders();
-//            httpHeaders.set("Authorization", "Bearer " + accessToken);
             httpHeaders.set("Content-Type", "application/x-www-form-urlencoded");
             entity = new HttpEntity<>(tokenBody, httpHeaders);
             System.out.println(entity);
@@ -395,9 +390,5 @@ public class CompleteService {
         } catch (Exception ignored) {
         }
         return null;
-    }
-
-    public String isInsured() {
-        return userId != null ? insuranceMap.getOrDefault(userId, "") : "";
     }
 }
