@@ -26,15 +26,15 @@ public class CompleteService {
     @Autowired
     private RestTemplate restTemplate;
 
-    public void clearHash(){
-        creditCardHashMap.clear();
-    }
-
     public CompleteService() {
         LoginCredentials loginCredentials1 = new LoginCredentials("vinayak", "1", "123456789101");
         LoginCredentials loginCredentials2 = new LoginCredentials("demo", "demo", "123456789012");
         LoginCredentials loginCredentials3 = new LoginCredentials("ashok", "1", "123456789111");
         this.loginCredentialsList = new ArrayList<>(List.of(new LoginCredentials[]{loginCredentials1, loginCredentials2, loginCredentials3}));
+    }
+
+    public void clearHash() {
+        creditCardHashMap.clear();
     }
 
     public String login(String username, String password) {
@@ -222,8 +222,8 @@ public class CompleteService {
 
     public String fundTransfer(String amount, String type) {
         try {
-            if (Objects.equals(type, "credit") && !creditCardHashMap.containsKey(userId))
-                return "No credit card";
+            if (Objects.equals(type, "card") && !creditCardHashMap.containsKey(userId))
+                return "No Card";
             accounts = fetchAccounts();
             if (accounts != null) {
                 System.out.println(amount);
@@ -238,12 +238,13 @@ public class CompleteService {
                     else if (Objects.equals(accountType, "CurrentAccount"))
                         toId = jsonNode.get(i).get("Account").get(0).get("Identification").asText();
                 }
+                if (Objects.equals(type, "card"))
+                    fromId = "50000012345602";
+                else toId = "50000012345602";
 
-                if (Objects.equals(type, "debit")) toId = "50000012345602";
-                else if (Objects.equals(type, "credit")) fromId = "50000012345602";
                 if (fromId != null && toId != null) {
                     System.out.println("From - " + fromId + " To - " + toId);
-                    String paymentStatus = paymentInitAndAuth(amount, fromId, toId);
+                    paymentInitAndAuth(amount, fromId, toId);
                 }
                 return "Success";
             }
@@ -253,7 +254,7 @@ public class CompleteService {
         return null;
     }
 
-    private String paymentInitAndAuth(String amount, String from, String to) {
+    private void paymentInitAndAuth(String amount, String from, String to) {
         try {
             String clientId = "K84X087ivOr-uMCrAyCWZWdX5F7AiXfuwH_SPmRyAeM=", clientSecret = "korE_IPmOfR1QYAnTsWef8Efrq79LnTQt3KOSBMZ5UU=";
             ObjectMapper objectMapper = new ObjectMapper();
@@ -266,7 +267,10 @@ public class CompleteService {
             HttpEntity<Object> entity = new HttpEntity<>(accessTokenBody, httpHeaders);
             String accessToken = objectMapper.readTree(restTemplate.exchange("https://ob.sandbox.natwest.com/token", HttpMethod.POST, entity, String.class).getBody()).get("access_token").asText();
             System.out.println(accessToken);
-            String paymentTo = "FITPASS CO.";
+            String paymentTo = (Objects.equals(amount, "29.99")) ? "FITPASS CO. - 3M" : (Objects.equals(amount, "49.99")) ? "FITPASS CO. - 6M" : "FITPASS CO. - 12M";
+
+            if (Objects.equals(from, "50000012345602"))
+                amount = String.valueOf(Integer.parseInt(amount) * 0.95);
 
             // Payment Request
             httpHeaders = new HttpHeaders();
@@ -358,11 +362,9 @@ public class CompleteService {
             System.out.println(entity);
             String str = new ObjectMapper().readTree(restTemplate.exchange("https://ob.sandbox.natwest.com/open-banking/v3.1/pisp/domestic-payments", HttpMethod.POST, entity, String.class).getBody()).get("Data").get("DomesticPaymentId").asText();
             System.out.println(str);
-            return str;
         } catch (Exception e) {
             System.out.println(Arrays.toString(e.getStackTrace()));
         }
-        return null;
     }
 
     public String fetchAccountBalances(String accountId) {

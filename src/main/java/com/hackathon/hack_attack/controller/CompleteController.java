@@ -35,13 +35,13 @@ public class CompleteController {
         return completeService.createCreditCard();
     }
 
-    @PostMapping("/payment/{card}")
-    private String payment(@RequestParam String amount, @PathVariable String card) {
-        return completeService.fundTransfer(amount, card);
+    @PostMapping("/payment/{type}")
+    private String payment(@RequestParam String amount, @PathVariable String type) {
+        return completeService.fundTransfer(amount, type);
     }
 
     @GetMapping("/clear")
-    private void clear(){
+    private void clear() {
         completeService.clearHash();
     }
 }
