@@ -142,7 +142,7 @@ public class CompleteService {
             String cardNumber = new ObjectMapper().readTree(restTemplate.exchange("https://ob.sandbox.natwest.com/open-banking/v3.1/aisp/accounts/" + accountId + "/cards", HttpMethod.GET, entity, String.class).getBody()).get("cards").get(0).get("cardNumber").asText();
             System.out.println(cardNumber);
             creditCardHashMap.put(userId, cardNumber);
-            return cardNumber;
+            return cardNumber.substring(cardNumber.length() - 4);
         } catch (Exception e) {
             return "Failed";
         }
@@ -270,7 +270,7 @@ public class CompleteService {
             String paymentTo = (Objects.equals(amount, "29.99")) ? "FITPASS CO. - 3M" : (Objects.equals(amount, "49.99")) ? "FITPASS CO. - 6M" : "FITPASS CO. - 12M";
 
             if (Objects.equals(from, "50000012345602"))
-                amount = String.valueOf(Integer.parseInt(amount) * 0.95);
+                amount = String.valueOf(Integer.parseInt(amount) * 0.9);
 
             // Payment Request
             httpHeaders = new HttpHeaders();
