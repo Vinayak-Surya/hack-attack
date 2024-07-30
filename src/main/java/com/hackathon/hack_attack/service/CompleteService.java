@@ -267,7 +267,7 @@ public class CompleteService {
             HttpEntity<Object> entity = new HttpEntity<>(accessTokenBody, httpHeaders);
             String accessToken = objectMapper.readTree(restTemplate.exchange("https://ob.sandbox.natwest.com/token", HttpMethod.POST, entity, String.class).getBody()).get("access_token").asText();
             System.out.println(accessToken);
-            String paymentTo = (Objects.equals(amount, "29.99")) ? "FITPASS CO. - 3M" : (Objects.equals(amount, "49.99")) ? "FITPASS CO. - 6M" : "FITPASS CO. - 12M";
+            String paymentTo = (Objects.equals(amount, "29.99")) ? "FITPASS ELITE 3M" : (Objects.equals(amount, "49.99")) ? "FITPASS ELITE 6M" : "FITPASS ELITE 12M";
 
             if (Objects.equals(from, "50000012345602"))
                 amount = String.valueOf(Integer.parseInt(amount) * 0.9);
