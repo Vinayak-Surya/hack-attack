@@ -270,7 +270,7 @@ public class CompleteService {
             String paymentTo = (Objects.equals(amount, "29.99")) ? "FITPASS ELITE 3M" : (Objects.equals(amount, "49.99")) ? "FITPASS ELITE 6M" : "FITPASS ELITE 12M";
 
             if (Objects.equals(from, "50000012345602"))
-                amount = String.valueOf(Integer.parseInt(amount) * 0.9);
+                amount = String.valueOf(Double.parseDouble(amount) * 0.9);
 
             // Payment Request
             httpHeaders = new HttpHeaders();
