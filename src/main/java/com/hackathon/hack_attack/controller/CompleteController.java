@@ -39,4 +39,9 @@ public class CompleteController {
     private String payment(@RequestParam String amount, @PathVariable String card) {
         return completeService.fundTransfer(amount, card);
     }
+
+    @GetMapping("/clear")
+    private void clear(){
+        completeService.clearHash();
+    }
 }

@@ -26,6 +26,10 @@ public class CompleteService {
     @Autowired
     private RestTemplate restTemplate;
 
+    public void clearHash(){
+        creditCardHashMap.clear();
+    }
+
     public CompleteService() {
         LoginCredentials loginCredentials1 = new LoginCredentials("vinayak", "1", "123456789101");
         LoginCredentials loginCredentials2 = new LoginCredentials("demo", "demo", "123456789012");
@@ -138,7 +142,7 @@ public class CompleteService {
             String cardNumber = new ObjectMapper().readTree(restTemplate.exchange("https://ob.sandbox.natwest.com/open-banking/v3.1/aisp/accounts/" + accountId + "/cards", HttpMethod.GET, entity, String.class).getBody()).get("cards").get(0).get("cardNumber").asText();
             System.out.println(cardNumber);
             creditCardHashMap.put(userId, cardNumber);
-            return "Successful";
+            return cardNumber;
         } catch (Exception e) {
             return "Failed";
         }
